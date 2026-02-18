@@ -171,7 +171,7 @@
             // Изображение (используем заглушку, если файла нет)
             // Можно указать реальные пути, например images/game{i}.jpg
             const img = document.createElement('img');
-            img.src = `IMG_0143.jpeg`; // предполагаемая папка с картинками
+            img.src = `images/game${i}.jpg`; // предполагаемая папка с картинками
             img.alt = `Игра ${i}`;
             img.onerror = function() {
                 this.onerror = null;
@@ -193,7 +193,7 @@
             title.textContent = `Игра ${i}: Название`;
 
             const link = document.createElement('a');
-            link.href = `zmeyka.html`; // ссылка на отдельный HTML-файл
+            link.href = `game${i}.html`; // ссылка на отдельный HTML-файл
             link.className = 'btn';
             link.textContent = 'Подробнее';
 
