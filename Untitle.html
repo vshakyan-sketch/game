@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Змейка • плавная</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at 20% 30%, #1a3a3a, #0b1a1f);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        .game-wrapper {
+            width: min(98vw, 500px);
+            padding: 12px;
+            background: rgba(10, 25, 30, 0.9);
+            backdrop-filter: blur(4px);
+            border-radius: 40px;
+            box-shadow: 0 20px 30px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(80, 140, 130, 0.5);
+        }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px #00000040, 0 10px 15px #00000060;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1/1;
+            display: block;
+            background: #142026;
+            touch-action: none;
+        }
+        .score-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 8px 8px;
+            color: #deeeff;
+            font-weight: 600;
+            font-size: 1.4rem;
+            text-shadow: 0 2px 5px #00000080;
+        }
+        #restartBtn {
+            background: #2d4f4a;
+            border: none;
+            color: #f0faf0;
+            font-size: 1.2rem;
+            padding: 10px 22px;
+            border-radius: 60px;
+            font-weight: bold;
+            box-shadow: 0 6px 0 #1a302c, 0 8px 12px black;
+            cursor: pointer;
+            transition: 0.07s ease;
+            border: 1px solid #55a090;
+            letter-spacing: 0.5px;
+        }
+        #restartBtn:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 #1a302c, 0 5px 10px black;
+        }
+        .direction-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 12px;
+            gap: 8px;
+        }
+        .direction-row {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+        }
+        .dir-btn {
+            width: 75px;
+            height: 75px;
+            background: #1c3a42;
+            border: none;
+            color: #ddeff5;
+            font-size: 2.7rem;
+            border-radius: 30px;
+            box-shadow: 0 9px 0 #0b2025, 0 10px 18px black;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.06s linear;
+            touch-action: manipulation;
+            border: 2px solid #3e7b82;
+            text-shadow: 0 3px 3px black;
+            font-weight: 600;
+        }
+        .dir-btn:active {
+            transform: translateY(9px);
+            box-shadow: 0 2px 0 #0b2025, 0 8px 12px black;
+        }
+        @media (max-width: 450px) {
+            .dir-btn {
+                width: 65px;
+                height: 65px;
+                font-size: 2.3rem;
+            }
+            .score-panel {
+                font-size: 1.2rem;
+            }
+        }
+        /* Анимация пульсации для счёта */
+        .score-value {
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        .pop {
+            transform: scale(1.3);
+            color: #ffd966;
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <div class="canvas-container">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+    <div class="score-panel">
+        <span>🍎 <span id="scoreDisplay" class="score-value">0</span></span>
+        <button id="restartBtn">⟳ Новая игра</button>
+    </div>
+    <div class="direction-panel">
+        <div class="direction-row">
+            <button class="dir-btn" id="btnUp">▲</button>
+        </div>
+        <div class="direction-row">
+            <button class="dir-btn" id="btnLeft">◀</button>
+            <button class="dir-btn" id="btnDown">▼</button>
+            <button class="dir-btn" id="btnRight">▶</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // --- НАСТРОЙКИ ---
+        const GRID_SIZE = 20;                  // поле 20x20
+        const CANVAS_SIZE = 400;                // базовый размер canvas (для расчётов)
+        const TICK_INTERVAL_MS = 160;            // логический тик (мс)
+        const ANIMATION_DURATION = TICK_INTERVAL_MS; // длительность анимации перехода (совпадает с тиком)
+
+        // --- ЭЛЕМЕНТЫ ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Кнопки
+        const btnUp = document.getElementById('btnUp');
+        const btnDown = document.getElementById('btnDown');
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+
+        // --- ИГРОВЫЕ ПЕРЕМЕННЫЕ ---
+        // Дискретное состояние (логика)
+        let snake = [];                         // массив клеток {x, y} (голова в индексе 0)
+        let food = { x: 0, y: 0 };
+        let direction = 'RIGHT';
+        let nextDirection = 'RIGHT';
+        let score = 0;
+        let gameOver = false;
+
+        // Для плавной анимации: храним текущие рисуемые позиции (интерполированные)
+        let animatedSnake = [];                  // массив {x, y} с плавающими координатами
+        let animatedFood = { x: 0, y: 0 };
+
+        // Целевые позиции для анимации (соответствуют логическим после шага)
+        let targetSnake = [];
+        let targetFood = { x: 0, y: 0 };
+
+        // Время анимации
+        let lastTickTime = performance.now();
+        let animProgress = 1.0;                   // от 0 до 1 (1 - анимация завершена)
+        let tickPending = false;                  // флаг, что нужно обработать следующий тик
+
+        // Таймеры
+        let gameInterval = null;
+        let rafId = null;
+
+        // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // Генерация еды в свободной клетке (возвращает true, если успешно)
+        function generateFood() {
+            const totalCells = GRID_SIZE * GRID_SIZE;
+            if (snake.length >= totalCells) {
+                gameOver = true;
+                return false;
+            }
+
+            const snakeSet = new Set(snake.map(cell => `${cell.x},${cell.y}`));
+            let freeCells = [];
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    if (!snakeSet.has(`${i},${j}`)) {
+                        freeCells.push({ x: i, y: j });
+                    }
+                }
+            }
+            if (freeCells.length === 0) {
+                gameOver = true;
+                return false;
+            }
+            const randIndex = Math.floor(Math.random() * freeCells.length);
+            food = freeCells[randIndex];
+            return true;
+        }
+
+        // Инициализация игры
+        function initGame() {
+            // Начальная змейка из 3 клеток
+            snake = [
+                { x: 10, y: 10 },
+                { x: 9, y: 10 },
+                { x: 8, y: 10 }
+            ];
+            direction = 'RIGHT';
+            nextDirection = 'RIGHT';
+            score = 0;
+            gameOver = false;
+            scoreSpan.textContent = '0';
+            generateFood();
+
+            // Инициализируем анимированные позиции равными дискретным
+            animatedSnake = snake.map(p => ({ x: p.x, y: p.y }));
+            animatedFood = { ...food };
+
+            targetSnake = snake.map(p => ({ ...p }));
+            targetFood = { ...food };
+
+            animProgress = 1.0; // стоим на месте
+            lastTickTime = performance.now();
+        }
+
+        // Проверка смены направления (нельзя разворачиваться)
+        function canChangeDirection(newDir, currentDir) {
+            if (currentDir === 'UP' && newDir === 'DOWN') return false;
+            if (currentDir === 'DOWN' && newDir === 'UP') return false;
+            if (currentDir === 'LEFT' && newDir === 'RIGHT') return false;
+            if (currentDir === 'RIGHT' && newDir === 'LEFT') return false;
+            return true;
+        }
+
+        function setDirection(newDir) {
+            if (gameOver) return;
+            if (canChangeDirection(newDir, direction)) {
+                nextDirection = newDir;
+            }
+        }
+
+        // --- ЛОГИЧЕСКИЙ ШАГ (вызывается по таймеру) ---
+        function gameTick() {
+            if (gameOver) return;
+
+            // Применяем направление
+            direction = nextDirection;
+
+            // Новая голова
+            const head = snake[0];
+            let newHead = { ...head };
+            switch (direction) {
+                case 'UP':    newHead.y -= 1; break;
+                case 'DOWN':  newHead.y += 1; break;
+                case 'LEFT':  newHead.x -= 1; break;
+                case 'RIGHT': newHead.x += 1; break;
+            }
+
+            // Проверка границ
+            if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
+                gameOver = true;
+                return;
+            }
+
+            // Проверка, съели ли еду
+            const isEating = (newHead.x === food.x && newHead.y === food.y);
+
+            // Вставляем новую голову
+            snake.unshift(newHead);
+
+            // Если не ели — удаляем хвост
+            if (!isEating) {
+                snake.pop();
+            } else {
+                // Увеличиваем счёт
+                score += 1;
+                scoreSpan.textContent = score;
+                // Анимация "pop" для счёта
+                scoreSpan.classList.add('pop');
+                setTimeout(() => scoreSpan.classList.remove('pop'), 150);
+
+                // Генерируем новую еду
+                const success = generateFood();
+                if (!success || gameOver) {
+                    // Если поле заполнено, gameOver уже true
+                    return;
+                }
+            }
+
+            // Проверка на столкновение с телом (голова не должна совпадать с остальными)
+            const headPos = snake[0];
+            for (let i = 1; i < snake.length; i++) {
+                if (snake[i].x === headPos.x && snake[i].y === headPos.y) {
+                    gameOver = true;
+                    break;
+                }
+            }
+
+            // После логического шага обновляем целевые позиции для анимации
+            targetSnake = snake.map(p => ({ ...p }));
+            targetFood = { ...food };
+        }
+
+        // --- ФУНКЦИЯ АНИМАЦИИ (requestAnimationFrame) ---
+        function animate(now) {
+            rafId = requestAnimationFrame(animate);
+
+            if (!gameOver) {
+                // Вычисляем, сколько прошло времени с последнего тика
+                const timeSinceLastTick = now - lastTickTime;
+
+                // Если пришло время для нового логического тика
+                if (timeSinceLastTick >= TICK_INTERVAL_MS) {
+                    // Сдвигаем время, но сохраняем остаток для точности
+                    lastTickTime = now - (timeSinceLastTick % TICK_INTERVAL_MS);
+
+                    // Выполняем логический шаг
+                    gameTick();
+
+                    // Сбрасываем прогресс анимации
+                    animProgress = 0.0;
+                }
+
+                // Обновляем прогресс анимации (линейно)
+                if (animProgress < 1.0) {
+                    const delta = (now - lastTickTime) / ANIMATION_DURATION;
+                    animProgress = Math.min(delta, 1.0);
+                }
+            }
+
+            // Интерполяция позиций для плавного движения
+            if (!gameOver && animProgress < 1.0 && targetSnake.length > 0) {
+                // Интерполируем каждый сегмент змейки от текущего (animatedSnake) к целевому (targetSnake)
+                // Но проще интерполировать между предыдущим состоянием (которое мы не храним) и целевым.
+                // Мы можем хранить "startSnake" в момент начала тика. Для упрощения будем использовать
+                // тот факт, что animatedSnake уже хранит позиции после предыдущей интерполяции,
+                // и интерполируем от них к targetSnake. Это может вызвать небольшую инерцию, но будет плавно.
+                for (let i = 0; i < targetSnake.length; i++) {
+                    const target = targetSnake[i];
+                    const current = animatedSnake[i] || target; // если вдруг не совпадает длина
+                    animatedSnake[i] = {
+                        x: current.x + (target.x - current.x) * 0.25, // коэффициент сглаживания
+                        y: current.y + (target.y - current.y) * 0.25
+                    };
+                    // Если очень близко к цели, приравниваем
+                    if (Math.abs(animatedSnake[i].x - target.x) < 0.01) animatedSnake[i].x = target.x;
+                    if (Math.abs(animatedSnake[i].y - target.y) < 0.01) animatedSnake[i].y = target.y;
+                }
+
+                // Интерполяция еды
+                animatedFood.x += (targetFood.x - animatedFood.x) * 0.25;
+                animatedFood.y += (targetFood.y - animatedFood.y) * 0.25;
+                if (Math.abs(animatedFood.x - targetFood.x) < 0.01) animatedFood.x = targetFood.x;
+                if (Math.abs(animatedFood.y - targetFood.y) < 0.01) animatedFood.y = targetFood.y;
+            } else {
+                // Если анимация завершена или игра окончена, синхронизируем с целевыми
+                animatedSnake = targetSnake.map(p => ({ ...p }));
+                animatedFood = { ...targetFood };
+            }
+
+            // Отрисовка
+            drawScene();
+        }
+
+        // --- ОТРИСОВКА (с использованием animatedSnake и animatedFood) ---
+        function drawScene() {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            const cellSize = CANVAS_SIZE / GRID_SIZE;
+
+            // Рисуем тёмную подложку с сеткой (мягкие линии)
+            ctx.fillStyle = '#142026';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // Рисуем очень тонкую сетку
+            ctx.beginPath();
+            ctx.strokeStyle = '#2d4a55';
+            ctx.lineWidth = 0.6;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, CANVAS_SIZE);
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(CANVAS_SIZE, i * cellSize);
+            }
+            ctx.stroke();
+
+            // Рисуем змейку (с плавными координатами)
+            for (let i = 0; i < animatedSnake.length; i++) {
+                const seg = animatedSnake[i];
+                const isHead = (i === 0);
+                const x = seg.x * cellSize;
+                const y = seg.y * cellSize;
+
+                // Градиент для объёма
+                const gradient = ctx.createRadialGradient(x+3, y+3, 2, x+cellSize/2, y+cellSize/2, cellSize/1.5);
+                if (isHead) {
+                    gradient.addColorStop(0, '#b0e57c');
+                    gradient.addColorStop(1, '#4f9e4a');
+                } else {
+                    gradient.addColorStop(0, '#6dad5a');
+                    gradient.addColorStop(1, '#2f7540');
+                }
+
+                ctx.shadowColor = isHead ? '#d0ffb0' : '#60a080';
+                ctx.shadowBlur = isHead ? 16 : 8;
+                ctx.fillStyle = gradient;
+
+                // Рисуем закруглённый квадрат (капсула)
+                const padding = 2;
+                const radius = Math.min(cellSize/3, 8);
+                ctx.beginPath();
+                ctx.roundRect(x + padding/2, y + padding/2, cellSize - padding, cellSize - padding, radius);
+                ctx.fill();
+
+                // Глазки у головы
+                if (isHead) {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(x + cellSize*0.35, y + cellSize*0.35, cellSize*0.12, 0, 2*Math.PI);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(x + cellSize*0.65, y + cellSize*0.35, cellSize*0.1, 0, 2*Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = '#0a1a1a';
+                    ctx.beginPath();
+                    ctx.arc(x + cellSize*0.33, y + cellSize*0.33, cellSize*0.06, 0, 2*Math.PI);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(x + cellSize*0.63, y + cellSize*0.33, cellSize*0.05, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            }
+
+            // Рисуем еду (пульсирующий фрукт)
+            const fx = animatedFood.x * cellSize;
+            const fy = animatedFood.y * cellSize;
+            const pulse = 1 + 0.1 * Math.sin(performance.now() / 200); // пульсация
+
+            ctx.shadowColor = '#ff6f6f';
+            ctx.shadowBlur = 20;
+            const foodGrad = ctx.createRadialGradient(fx+5, fy+5, 3, fx+cellSize/2, fy+cellSize/2, cellSize/2 * pulse);
+            foodGrad.addColorStop(0, '#ffb347');
+            foodGrad.addColorStop(0.7, '#e63946');
+            ctx.fillStyle = foodGrad;
+
+            ctx.beginPath();
+            ctx.arc(fx + cellSize/2, fy + cellSize/2, cellSize/2.2 * pulse, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Листик
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#7cfc00';
+            ctx.beginPath();
+            ctx.ellipse(fx + cellSize/2.5, fy + cellSize/3.5, cellSize/8, cellSize/12, 0.2, 0, 2*Math.PI);
+            ctx.fill();
+
+            // Если игра окончена — затемнение и надпись
+            if (gameOver) {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                ctx.fillStyle = '#ffe9d0';
+                ctx.font = 'bold 28px "Segoe UI", Roboto, sans-serif';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 14;
+                ctx.fillText('☠️ Игра окончена', 45, 220);
+            }
+        }
+
+        // Вспомогательный метод для рисования скруглённых прямоугольников
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            return this;
+        };
+
+        // --- УПРАВЛЕНИЕ ---
+        window.addEventListener('keydown', (e) => {
+            const key = e.key;
+            e.preventDefault();
+            if (key === 'ArrowUp') setDirection('UP');
+            else if (key === 'ArrowDown') setDirection('DOWN');
+            else if (key === 'ArrowLeft') setDirection('LEFT');
+            else if (key === 'ArrowRight') setDirection('RIGHT');
+        });
+
+        // Свайпы
+        let touchStartX = 0, touchStartY = 0;
+        const SWIPE_THRESH = 20;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (!touchStartX || !touchStartY) return;
+            const touchEnd = e.changedTouches[0];
+            const dx = touchEnd.clientX - touchStartX;
+            const dy = touchEnd.clientY - touchStartY;
+
+            if (Math.abs(dx) < SWIPE_THRESH && Math.abs(dy) < SWIPE_THRESH) return;
+
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > 0) setDirection('RIGHT');
+                else setDirection('LEFT');
+            } else {
+                if (dy > 0) setDirection('DOWN');
+                else setDirection('UP');
+            }
+
+            touchStartX = 0; touchStartY = 0;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Кнопки
+        btnUp.addEventListener('click', () => setDirection('UP'));
+        btnDown.addEventListener('click', () => setDirection('DOWN'));
+        btnLeft.addEventListener('click', () => setDirection('LEFT'));
+        btnRight.addEventListener('click', () => setDirection('RIGHT'));
+
+        // Рестарт
+        restartBtn.addEventListener('click', () => {
+            stopGame();
+            initGame();
+            startGame();
+        });
+
+        // --- ЗАПУСК И ОСТАНОВКА ---
+        function stopGame() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }
+
+        function startGame() {
+            lastTickTime = performance.now();
+            animProgress = 1.0; // начинаем с завершённой анимации
+            // Таймер для логических тиков
+            gameInterval = setInterval(() => {
+                // Только устанавливаем флаг, что пора сделать тик (но тик делаем в анимации)
+                // Но для простоты оставим вызов gameTick здесь, но нужно синхронизировать с анимацией.
+                // Лучше управлять временем в animation loop, как мы и сделали.
+                // Однако setInterval будет вносить свой тик независимо от анимации.
+                // Чтобы избежать двойных вызовов, мы уберём setInterval и будем полагаться только на requestAnimationFrame с проверкой времени.
+                // Так и сделаем: gameInterval не нужен.
+            }, TICK_INTERVAL_MS);
+            // Вместо setInterval мы уже всё делаем в animate по времени.
+            // Очистим предыдущий интервал, если был.
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            // Запускаем анимационный цикл
+            rafId = requestAnimationFrame(animate);
+        }
+
+        // Инициализация и старт
+        initGame();
+        startGame();
+
+        // Обработка видимости страницы (пауза не требуется, но можно)
+        window.addEventListener('blur', () => {});
+        window.addEventListener('focus', () => {});
+    })();
+</script>
+</body>
+</html>
