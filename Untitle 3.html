@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+</head>
+<body>
+    
+</body>
+</html>
+
+```html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Космический бой — Space Shooter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #0a0c1a 0%, #14182b 100%);
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+
+        .game-container {
+            background: rgba(8, 12, 22, 0.9);
+            backdrop-filter: blur(8px);
+            border-radius: 36px;
+            padding: 18px;
+            box-shadow: 0 25px 40px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .main-panel {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .board-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        canvas#gameCanvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-width: 360px;
+            background: #0c1020;
+            border-radius: 28px;
+            box-shadow: inset 0 -4px 0 #050814, 0 15px 25px rgba(0, 0, 0, 0.6);
+            border: 2px solid #3a4a70;
+            image-rendering: crisp-edges;
+        }
+
+        /* Мобильное управление */
+        .mobile-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 360px;
+            margin-top: 5px;
+        }
+
+        .mobile-btn {
+            background: #29355c;
+            border-radius: 50px;
+            padding: 16px 6px;
+            font-size: 2.2rem;
+            box-shadow: 0 6px 0 #121b30;
+            color: #d4e4ff;
+            border: 1px solid #5f7ab3;
+            text-align: center;
+            font-weight: bold;
+            touch-action: manipulation;
+            cursor: pointer;
+            transition: 0.05s linear;
+        }
+
+        .mobile-btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 1px 0 #121b30;
+        }
+
+        .info-panel {
+            background: #141e32;
+            border-radius: 30px;
+            padding: 20px 18px;
+            min-width: 170px;
+            box-shadow: inset 0 2px 4px #2f405f, 0 12px 20px #020308;
+            border: 1px solid #415d8a;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .stats {
+            background: #1e2a44;
+            border-radius: 24px;
+            padding: 16px 14px;
+            box-shadow: inset 0 1px 4px #3f5180;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            color: #eaf2ff;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 14px;
+        }
+
+        .stat-row span:last-child {
+            color: #ffdb8e;
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+        }
+
+        .record {
+            background: #1f2d4f;
+            padding: 6px 12px;
+            border-radius: 40px;
+            border: 1px solid #5f80c0;
+            font-size: 1rem;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        button {
+            background: #31487a;
+            border: none;
+            border-radius: 60px;
+            padding: 14px 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 6px 0 #172238, 0 10px 18px black;
+            transition: 0.05s linear;
+            cursor: pointer;
+            border: 1px solid #6d8ed6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            touch-action: manipulation;
+        }
+
+        button:active {
+            transform: translateY(6px);
+            box-shadow: 0 1px 0 #172238, 0 8px 14px black;
+        }
+
+        .footer {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-top: 14px;
+            color: #7b92c4;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 520px) {
+            .main-panel {
+                flex-direction: column;
+                align-items: center;
+            }
+            .info-panel {
+                width: 100%;
+                max-width: 360px;
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: space-around;
+                padding: 14px;
+            }
+            .stats {
+                flex: 1;
+                min-width: 140px;
+            }
+            .controls {
+                flex-direction: row;
+                width: 100%;
+            }
+            button {
+                flex: 1;
+            }
+            .footer span:first-child {
+                display: none;
+            }
+        }
+
+        @media (min-width: 521px) {
+            .mobile-controls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="main-panel">
+            <!-- Левая часть с игрой и мобильными кнопками -->
+            <div class="board-section">
+                <canvas id="gameCanvas" width="360" height="500"></canvas>
+                <!-- Мобильные кнопки -->
+                <div class="mobile-controls">
+                    <div class="mobile-btn" id="moveLeftBtn">←</div>
+                    <div class="mobile-btn" id="fireBtn">🔥</div>
+                    <div class="mobile-btn" id="moveRightBtn">→</div>
+                </div>
+            </div>
+
+            <!-- Правая панель информации -->
+            <div class="info-panel">
+                <div class="stats">
+                    <div class="stat-row">ОЧКИ <span id="scoreDisplay">0</span></div>
+                    <div class="stat-row">УРОВЕНЬ <span id="levelDisplay">1</span></div>
+                    <div class="stat-row record">РЕКОРД <span id="recordDisplay">0</span></div>
+                </div>
+                <div class="controls">
+                    <button id="pauseBtn">⏸️ ПАУЗА</button>
+                    <button id="restartBtn">🔄 НОВАЯ</button>
+                </div>
+            </div>
+        </div>
+        <!-- Подсказки (на десктопе) -->
+        <div class="footer">
+            <span>←/→ движение, Пробел стрельба</span>
+            <span>P пауза / R рестарт</span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ----- ПАРАМЕТРЫ ИГРЫ -----
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = 360, H = 500;
+
+            // Элементы интерфейса
+            const scoreSpan = document.getElementById('scoreDisplay');
+            const levelSpan = document.getElementById('levelDisplay');
+            const recordSpan = document.getElementById('recordDisplay');
+
+            // Кнопки
+            const pauseBtn = document.getElementById('pauseBtn');
+            const restartBtn = document.getElementById('restartBtn');
+            const moveLeftBtn = document.getElementById('moveLeftBtn');
+            const moveRightBtn = document.getElementById('moveRightBtn');
+            const fireBtn = document.getElementById('fireBtn');
+
+            // ----- ИГРОВЫЕ ПЕРЕМЕННЫЕ -----
+            let player = { x: W/2 - 15, y: H - 50, width: 30, height: 20 };
+            let bullets = [];           // пули игрока { x, y, w, h }
+            let enemies = [];            // враги { x, y, w, h, hp, speed }
+            let score = 0;
+            let level = 1;
+            let record = localStorage.getItem('spaceRecord') ? parseInt(localStorage.getItem('spaceRecord')) : 0;
+            let gameOver = false;
+            let paused = false;
+            let animationFrame = null;
+
+            // Настройки сложности
+            const BASE_ENEMY_SPEED = 1.2;
+            const ENEMY_WIDTH = 25, ENEMY_HEIGHT = 20;
+            const BULLET_SPEED = 4;
+            const BULLET_WIDTH = 4, BULLET_HEIGHT = 10;
+            const PLAYER_SPEED = 5;
+
+            // Генерация врагов (интервал)
+            let enemySpawnTimer = 0;
+            const SPAWN_INTERVAL = 60; // кадров (примерно 1 сек при 60fps)
+            let frameCount = 0;
+
+            // Управление
+            let leftPressed = false;
+            let rightPressed = false;
+            let firePressed = false;
+            let canFire = true;
+            const FIRE_COOLDOWN = 12; // кадров между выстрелами
+            let fireCooldown = 0;
+
+            // Рекорд из localStorage
+            recordSpan.textContent = record;
+
+            // ----- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ -----
+            function resetGame() {
+                player.x = W/2 - 15;
+                bullets = [];
+                enemies = [];
+                score = 0;
+                level = 1;
+                gameOver = false;
+                paused = false;
+                pauseBtn.textContent = '⏸️ ПАУЗА';
+                enemySpawnTimer = 0;
+                fireCooldown = 0;
+                updateUI();
+            }
+
+            function updateUI() {
+                scoreSpan.textContent = score;
+                levelSpan.textContent = level;
+                if (score > record) {
+                    record = score;
+                    localStorage.setItem('spaceRecord', record);
+                }
+                recordSpan.textContent = record;
+            }
+
+            // Проверка столкновений (AABB)
+            function rectCollide(r1, r2) {
+                return !(r2.x >= r1.x + r1.width ||
+                         r2.x + r2.width <= r1.x ||
+                         r2.y >= r1.y + r1.height ||
+                         r2.y + r2.height <= r1.y);
+            }
+
+            // Генерация нового врага
+            function spawnEnemy() {
+                let x = Math.random() * (W - ENEMY_WIDTH);
+                let y = -ENEMY_HEIGHT;
+                // Скорость зависит от уровня
+                let speed = BASE_ENEMY_SPEED + (level - 1) * 0.3;
+                enemies.push({
+                    x: x,
+                    y: y,
+                    width: ENEMY_WIDTH,
+                    height: ENEMY_HEIGHT,
+                    speed: speed
+                });
+            }
+
+            // ----- ОБРАБОТКА ЛОГИКИ -----
+            function update() {
+                if (gameOver || paused) return;
+
+                // Движение игрока
+                if (leftPressed) player.x = Math.max(0, player.x - PLAYER_SPEED);
+                if (rightPressed) player.x = Math.min(W - player.width, player.x + PLAYER_SPEED);
+
+                // Стрельба
+                if (firePressed && canFire && fireCooldown <= 0) {
+                    bullets.push({
+                        x: player.x + player.width/2 - BULLET_WIDTH/2,
+                        y: player.y - BULLET_HEIGHT,
+                        width: BULLET_WIDTH,
+                        height: BULLET_HEIGHT
+                    });
+                    fireCooldown = FIRE_COOLDOWN;
+                }
+                if (fireCooldown > 0) fireCooldown--;
+
+                // Движение пуль
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    bullets[i].y -= BULLET_SPEED;
+                    if (bullets[i].y + bullets[i].height < 0) {
+                        bullets.splice(i, 1);
+                        continue;
+                    }
+                }
+
+                // Движение врагов
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    enemies[i].y += enemies[i].speed;
+
+                    // Проверка выхода за нижнюю границу
+                    if (enemies[i].y > H) {
+                        enemies.splice(i, 1);
+                        continue;
+                    }
+
+                    // Проверка столкновения с игроком
+                    if (rectCollide(player, enemies[i])) {
+                        gameOver = true;
+                        paused = true;
+                        return;
+                    }
+                }
+
+                // Столкновения пуль с врагами
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    let bullet = bullets[i];
+                    for (let j = enemies.length - 1; j >= 0; j--) {
+                        let enemy = enemies[j];
+                        if (rectCollide(bullet, enemy)) {
+                            bullets.splice(i, 1);
+                            enemies.splice(j, 1);
+                            score += 10;
+                            // Повышение уровня каждые 100 очков
+                            if (score % 100 === 0) {
+                                level++;
+                            }
+                            break; // пуля исчезла, выходим из внутреннего цикла
+                        }
+                    }
+                }
+
+                // Спавн врагов (на основе кадров)
+                frameCount++;
+                if (frameCount % Math.max(20, SPAWN_INTERVAL - level * 2) === 0) {
+                    spawnEnemy();
+                }
+            }
+
+            // ----- ОТРИСОВКА -----
+            function draw() {
+                ctx.clearRect(0, 0, W, H);
+
+                // Звездный фон
+                ctx.fillStyle = '#0a0e1a';
+                ctx.fillRect(0, 0, W, H);
+                for (let i = 0; i < 50; i++) {
+                    if (i % 2 === 0) continue; // случайные звезды
+                    ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.6+0.2})`;
+                    ctx.fillRect(Math.random()*W, Math.random()*H, 2, 2);
+                }
+
+                // Игрок (корабль)
+                ctx.fillStyle = '#4cc9ff';
+                ctx.beginPath();
+                ctx.moveTo(player.x + player.width/2, player.y);
+                ctx.lineTo(player.x + player.width, player.y + player.height);
+                ctx.lineTo(player.x, player.y + player.height);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#80e0ff';
+                ctx.fillRect(player.x+8, player.y+5, 4, 8);
+                ctx.fillRect(player.x+18, player.y+5, 4, 8);
+
+                // Враги
+                ctx.fillStyle = '#ff5e6b';
+                enemies.forEach(enemy => {
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.width/2, enemy.height/2, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ff3038';
+                    ctx.beginPath();
+                    ctx.ellipse(enemy.x + enemy.width/2-3, enemy.y + enemy.height/2-3, 4, 4, 0, 0, Math.PI*2);
+                    ctx.fill();
+                });
+
+                // Пули
+                ctx.fillStyle = '#f5e56b';
+                bullets.forEach(b => {
+                    ctx.fillRect(b.x, b.y, b.width, b.height);
+                });
+
+                // Сообщение Game Over
+                if (gameOver) {
+                    ctx.font = 'bold 28px "Segoe UI", monospace';
+                    ctx.fillStyle = '#ffb6b6';
+                    ctx.shadowColor = '#ff0000';
+                    ctx.shadowBlur = 12;
+                    ctx.fillText('GAME OVER', 50, 250);
+                    ctx.shadowBlur = 0;
+                } else if (paused && !gameOver) {
+                    ctx.font = 'bold 26px "Segoe UI", monospace';
+                    ctx.fillStyle = '#aaccff';
+                    ctx.shadowColor = '#2266cc';
+                    ctx.shadowBlur = 10;
+                    ctx.fillText('ПАУЗА', 110, 250);
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            // ----- ИГРОВОЙ ЦИКЛ -----
+            function gameLoop() {
+                update();
+                draw();
+                updateUI();
+                animationFrame = requestAnimationFrame(gameLoop);
+            }
+
+            // Запуск
+            resetGame();
+            animationFrame = requestAnimationFrame(gameLoop);
+
+            // ----- ОБРАБОТЧИКИ КЛАВИАТУРЫ -----
+            function handleKeyDown(e) {
+                const key = e.key;
+                if (gameOver || paused) {
+                    if (key === 'p' || key === 'P' || key === 'р' || key === 'Р') {
+                        e.preventDefault();
+                        paused = !paused;
+                        pauseBtn.textContent = paused ? '▶️ ПРОДОЛЖИТЬ' : '⏸️ ПАУЗА';
+                    } else if (key === 'r' || key === 'R' || key === 'к' || key === 'К') {
+                        e.preventDefault();
+                        resetGame();
+                    }
+                    return;
+                }
+
+                e.preventDefault();
+                switch (key) {
+                    case 'ArrowLeft': leftPressed = true; break;
+                    case 'ArrowRight': rightPressed = true; break;
+                    case ' ': firePressed = true; break;
+                    case 'p':
+                    case 'P':
+                        paused = !paused;
+                        pauseBtn.textContent = paused ? '▶️ ПРОДОЛЖИТЬ' : '⏸️ ПАУЗА';
+                        break;
+                    case 'r':
+                    case 'R':
+                        resetGame();
+                        break;
+                }
+            }
+
+            function handleKeyUp(e) {
+                const key = e.key;
+                switch (key) {
+                    case 'ArrowLeft': leftPressed = false; break;
+                    case 'ArrowRight': rightPressed = false; break;
+                    case ' ': firePressed = false; break;
+                }
+            }
+
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', handleKeyUp);
+
+            // Запрет скролла стрелками
+            window.addEventListener('keydown', (e) => {
+                if (['ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                    e.preventDefault();
+                }
+            }, {passive: false});
+
+            // ----- МОБИЛЬНЫЕ КНОПКИ -----
+            moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); leftPressed = true; });
+            moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); leftPressed = false; });
+            moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); rightPressed = true; });
+            moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); rightPressed = false; });
+            fireBtn.addEventListener('touchstart', (e) => { e.preventDefault(); firePressed = true; });
+            fireBtn.addEventListener('touchend', (e) => { e.preventDefault(); firePressed = false; });
+
+            // Кнопки пауза / рестарт
+            pauseBtn.addEventListener('click', () => {
+                if (!gameOver) {
+                    paused = !paused;
+                    pauseBtn.textContent = paused ? '▶️ ПРОДОЛЖИТЬ' : '⏸️ ПАУЗА';
+                }
+            });
+            restartBtn.addEventListener('click', resetGame);
+
+            // Остановка цикла при выгрузке
+            window.addEventListener('beforeunload', () => {
+                if (animationFrame) cancelAnimationFrame(animationFrame);
+            });
+        })();
+    </script>
+</body>
+</html>
+```
