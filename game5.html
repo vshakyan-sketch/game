@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+</head>
+<body>
+    
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- Адаптация для мобильных: запрещаем масштабирование, ширина под устройство -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Прыг-скок · зомби-раннер</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; /* убираем серый фон при тапе */
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #1b2b3f 0%, #223b55 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 8px;
+        }
+        .game-container {
+            background: #2e4a6a;
+            padding: 20px 20px 25px;
+            border-radius: 38px;
+            box-shadow: 0 20px 30px rgba(0, 0, 0, 0.6), inset 2px 2px 5px #4d7a9b, inset -3px -3px 8px #1c3142;
+            width: 100%;
+            max-width: 800px;  /* для больших планшетов не растягивается */
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            width: 100%;       /* подстраивается под ширину родителя */
+            height: auto;      /* сохраняет пропорции 800x400 */
+            border-radius: 28px;
+            background: #a9d6e5;
+            box-shadow: inset 0 -5px 0 #6b4f3c, 0 10px 15px rgba(0,0,0,0.5);
+            cursor: pointer;
+            touch-action: none; /* запрещаем прокрутку/масштабирование жестами на canvas */
+        }
+        .panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin: 15px 8px 8px 8px;
+            color: #faeac6;
+            text-shadow: 3px 3px 0 #1f3a4b;
+            font-size: clamp(20px, 5vw, 26px);
+            font-weight: bold;
+            letter-spacing: 1px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .panel div {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(14, 42, 56, 0.7);
+            padding: 5px 12px;
+            border-radius: 40px;
+            box-shadow: inset 0 -3px 0 #3c6e8f;
+        }
+        .panel span {
+            background: #0e2a38;
+            padding: 6px 18px;
+            border-radius: 50px;
+            box-shadow: inset 0 -3px 0 #3c6e8f, 0 5px 0 #08212b;
+            color: #f5d98f;
+            font-size: clamp(24px, 6vw, 32px);
+            min-width: 90px;
+            text-align: center;
+        }
+        .action-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #f4c27a;
+            border: none;
+            font-family: inherit;
+            font-size: clamp(22px, 7vw, 32px);
+            font-weight: bold;
+            padding: 12px 32px;
+            border-radius: 60px;
+            color: #1f3f52;
+            box-shadow: 0 9px 0 #a05f2c, 0 5px 15px rgba(0,0,0,0.4);
+            cursor: pointer;
+            transition: 0.07s ease;
+            letter-spacing: 1.5px;
+            border: 2px solid #ffeac2;
+            min-width: 200px;
+            touch-action: manipulation;
+        }
+        button:active {
+            transform: translateY(7px);
+            box-shadow: 0 2px 0 #a05f2c, 0 5px 12px rgba(0,0,0,0.4);
+        }
+        .tip {
+            text-align: center;
+            color: #cfe6ef;
+            font-size: clamp(18px, 4.5vw, 24px);
+            text-shadow: 2px 2px 0 #132b36;
+            background: #1c3c4f;
+            padding: 8px 22px;
+            border-radius: 50px;
+            white-space: nowrap;
+        }
+        .tip kbd {
+            background: #283b44;
+            padding: 5px 12px;
+            border-radius: 30px;
+            color: #ffd78c;
+            margin: 0 4px;
+            font-size: 1.1em;
+        }
+        /* мобильные корректировки */
+        @media (max-width: 500px) {
+            .panel div {
+                width: 100%;
+                justify-content: center;
+            }
+            .panel span {
+                min-width: 70px;
+            }
+            .action-row {
+                flex-direction: column;
+            }
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div class="panel">
+        <div>⭐ Очки <span id="scoreDisplay">0</span></div>
+        <div>⚡ Скорость <span id="speedDisplay">4.0</span></div>
+    </div>
+    <div class="action-row">
+        <button id="restartButton">🧟 СТАРТ</button>
+        <div class="tip">
+            <kbd>👆</kbd> прыжок (тап / пробел)
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ------ холст и настройки ------
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreSpan = document.getElementById('scoreDisplay');
+    const speedSpan = document.getElementById('speedDisplay');
+    const restartBtn = document.getElementById('restartButton');
+
+    const W = 800, H = 400;
+    const GROUND_Y = 350;               // линия земли (верхний край земли)
+    const PLAYER_WIDTH = 22;
+    const PLAYER_HEIGHT = 32;
+
+    // ------ объекты игры ------
+    let player = {
+        x: 110,
+        y: GROUND_Y - PLAYER_HEIGHT,
+        width: PLAYER_WIDTH,
+        height: PLAYER_HEIGHT,
+        vy: 0,
+        grounded: true
+    };
+
+    let obstacles = [];     // теперь это зомби
+    let bonuses = [];       // бонусы (жёлтые)
+    let score = 0;
+    let speed = 4.0;
+    const MAX_SPEED = 14;
+    const SPEED_INCREASE = 0.0025;
+
+    let gameOver = false;
+
+    const GRAVITY = 0.5;
+    const JUMP_POWER = -10;
+
+    // параметры генерации
+    const MIN_DISTANCE = 200;
+    const OBSTACLE_WIDTH = 24;           // зомби чуть шире для узнаваемости
+    const OBSTACLE_HEIGHT = 36;           // повыше
+    const BONUS_SIZE = 14;
+
+    // вспомогательная
+    let animationFrame;
+
+    function rectCollide(r1, r2) {
+        return !(r2.x >= r1.x + r1.width ||
+            r2.x + r2.width <= r1.x ||
+            r2.y >= r1.y + r1.height ||
+            r2.y + r2.height <= r1.y);
+    }
+
+    function resetGame() {
+        gameOver = false;
+        player = {
+            x: 110,
+            y: GROUND_Y - PLAYER_HEIGHT,
+            width: PLAYER_WIDTH,
+            height: PLAYER_HEIGHT,
+            vy: 0,
+            grounded: true
+        };
+        obstacles = [];
+        bonuses = [];
+        score = 0;
+        speed = 4.0;
+    }
+
+    function generateObject() {
+        const type = Math.random() < 0.65 ? 'obstacle' : 'bonus';
+        if (type === 'obstacle') {
+            obstacles.push({
+                x: W,
+                y: GROUND_Y - OBSTACLE_HEIGHT,
+                width: OBSTACLE_WIDTH,
+                height: OBSTACLE_HEIGHT,
+            });
+        } else {
+            bonuses.push({
+                x: W,
+                y: GROUND_Y - BONUS_SIZE - 4,
+                width: BONUS_SIZE,
+                height: BONUS_SIZE,
+            });
+        }
+    }
+
+    function updateGame() {
+        // движение объектов
+        for (let obs of obstacles) obs.x -= speed;
+        for (let bonus of bonuses) bonus.x -= speed;
+
+        obstacles = obstacles.filter(obs => obs.x + obs.width > 0);
+        bonuses = bonuses.filter(b => b.x + b.width > 0);
+
+        // физика игрока
+        player.vy += GRAVITY;
+        player.y += player.vy;
+
+        if (player.y >= GROUND_Y - player.height) {
+            player.y = GROUND_Y - player.height;
+            player.vy = 0;
+            player.grounded = true;
+        } else {
+            player.grounded = false;
+        }
+
+        // столкновения с зомби (препятствиями)
+        for (let obs of obstacles) {
+            if (rectCollide(player, obs)) {
+                gameOver = true;
+                break;
+            }
+        }
+
+        // сбор бонусов
+        if (!gameOver) {
+            const remainingBonuses = [];
+            for (let b of bonuses) {
+                if (rectCollide(player, b)) {
+                    score += 15;
+                } else {
+                    remainingBonuses.push(b);
+                }
+            }
+            bonuses = remainingBonuses;
+        }
+
+        if (!gameOver) {
+            score += Math.floor(speed * 0.8) + 1;
+        }
+
+        if (speed < MAX_SPEED) {
+            speed = Math.min(MAX_SPEED, speed + SPEED_INCREASE);
+        }
+
+        // генерация
+        let maxX = -Infinity;
+        for (let obs of obstacles) maxX = Math.max(maxX, obs.x);
+        for (let b of bonuses) maxX = Math.max(maxX, b.x);
+        if (obstacles.length === 0 && bonuses.length === 0) maxX = -Infinity;
+
+        if (maxX < W - MIN_DISTANCE) {
+            generateObject();
+            if (Math.random() < 0.3 && speed > 7) {
+                generateObject();
+            }
+        }
+
+        scoreSpan.textContent = Math.floor(score);
+        speedSpan.textContent = speed.toFixed(1);
+    }
+
+    // ------ отрисовка с зомби вместо красных столбиков ------
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // небо
+        const sky = ctx.createLinearGradient(0, 0, 0, H);
+        sky.addColorStop(0, '#b3ddf2');
+        sky.addColorStop(0.7, '#dde9f0');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, W, H);
+
+        // земля
+        ctx.fillStyle = '#7b5a3d';
+        ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y + 5);
+        ctx.fillStyle = '#5d3f28';
+        for (let i = 0; i < 10; i++) {
+            ctx.fillRect(i * 90, GROUND_Y + 2, 40, 6);
+        }
+        ctx.fillStyle = '#4b3a26';
+        ctx.fillRect(0, GROUND_Y - 3, W, 5);
+
+        // рисуем бонусы (золотые кубики)
+        for (let b of bonuses) {
+            ctx.fillStyle = '#f5c542';
+            ctx.shadowColor = '#c9941a';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(b.x, b.y, b.width, b.height);
+            ctx.fillStyle = '#ffe28a';
+            ctx.fillRect(b.x + 2, b.y + 2, b.width - 5, 3);
+            ctx.shadowBlur = 0;
+        }
+
+        // ------ ЗОМБИ (препятствия) ------
+        for (let obs of obstacles) {
+            // основной цвет зомби — зеленовато-серый
+            ctx.fillStyle = '#3f7a5a';
+            ctx.shadowColor = '#1c4d2b';
+            ctx.shadowBlur = 12;
+            ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+
+            // гнилые пятна
+            ctx.fillStyle = '#5f9b6b';
+            ctx.fillRect(obs.x + 4, obs.y + 5, 5, 6);
+            ctx.fillRect(obs.x + 12, obs.y + 18, 6, 4);
+
+            // два белых глаза
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(obs.x + 3, obs.y + 8, 5, 6);
+            ctx.fillRect(obs.x + 13, obs.y + 8, 5, 6);
+
+            // красные зрачки (зомби-глаза)
+            ctx.fillStyle = '#aa2b2b';
+            ctx.fillRect(obs.x + 4, obs.y + 10, 3, 3);
+            ctx.fillRect(obs.x + 14, obs.y + 10, 3, 3);
+
+            // шрам или рот
+            ctx.strokeStyle = '#5a1e1e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(obs.x + 6, obs.y + 24);
+            ctx.lineTo(obs.x + 16, obs.y + 26);
+            ctx.stroke();
+
+            // заплатка на лбу
+            ctx.fillStyle = '#4f6b4a';
+            ctx.fillRect(obs.x + 8, obs.y + 2, 6, 4);
+        }
+
+        // рисуем игрока (без изменений)
+        ctx.shadowColor = '#2b4f6e';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#4aa3c2';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.fillStyle = 'white';
+        ctx.shadowBlur = 0;
+        ctx.fillRect(player.x + 4, player.y + 7, 4, 5);
+        ctx.fillRect(player.x + 13, player.y + 7, 4, 5);
+        ctx.fillStyle = '#0b1e2b';
+        ctx.fillRect(player.x + 6, player.y + 9, 2, 3);
+        ctx.fillRect(player.x + 15, player.y + 9, 2, 3);
+        ctx.fillStyle = '#d57e2c';
+        ctx.fillRect(player.x + 2, player.y + player.height-4, 6, 5);
+        ctx.fillRect(player.x + 13, player.y + player.height-4, 6, 5);
+        if (!player.grounded) {
+            ctx.fillStyle = '#f5d742';
+            ctx.beginPath();
+            ctx.arc(player.x + 18, player.y - 3, 5, 0, Math.PI, true);
+            ctx.fill();
+        }
+
+        if (gameOver) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, W, H);
+            ctx.font = 'bold 58px "Courier New", monospace';
+            ctx.fillStyle = '#ffcaca';
+            ctx.shadowColor = '#a10000';
+            ctx.shadowBlur = 18;
+            ctx.fillText('GAME OVER', 160, 220);
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.font = 'bold 24px "Courier New"';
+        ctx.fillStyle = '#1f261c';
+        ctx.fillText('🧟 ' + Math.floor(score), 650, 70);
+    }
+
+    function jump() {
+        if (gameOver) return;
+        if (player.grounded) {
+            player.vy = JUMP_POWER;
+            player.grounded = false;
+        }
+    }
+
+    function gameLoop() {
+        if (!gameOver) {
+            updateGame();
+        }
+        draw();
+        animationFrame = requestAnimationFrame(gameLoop);
+    }
+
+    // --- обработчики событий (мобильные + десктоп) ---
+    function handleKey(e) {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            jump();
+        }
+    }
+
+    function handleTap(e) {
+        e.preventDefault();
+        jump();
+    }
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('touchstart', handleTap, { passive: false });
+    canvas.addEventListener('click', handleTap);
+
+    restartBtn.addEventListener('click', () => {
+        resetGame();
+    });
+
+    // поддержка клавиатуры (для внешних клавиатур)
+    window.addEventListener('keydown', handleKey);
+
+    // старт
+    resetGame();
+    animationFrame = requestAnimationFrame(gameLoop);
+
+    window.addEventListener('beforeunload', () => {
+        if (animationFrame) cancelAnimationFrame(animationFrame);
+    });
+})();
+</script>
+</body>
+</html>
