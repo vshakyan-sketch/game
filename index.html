@@ -171,7 +171,7 @@
             // Изображение (используем заглушку, если файла нет)
             // Можно указать реальные пути, например images/game{i}.jpg
             const img = document.createElement('img');
-            img.src = `images/game${i}.jpg`; // предполагаемая папка с картинками
+            img.src = `game${i}.jpg`; // предполагаемая папка с картинками
             img.alt = `Игра ${i}`;
             img.onerror = function() {
                 this.onerror = null;
