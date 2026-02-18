@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+</head>
+<body>
+    
+</body>
+</html>
+
+```html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Арканоид (Breakout) — адаптивный</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* предотвращаем прокрутку и масштабирование на телефоне */
+        }
+
+        .game-container {
+            background: #16213e;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 20px 30px rgba(0,0,0,0.6);
+            width: min(95vw, 95vh * 1.33); /* пропорции примерно 4:3 */
+            aspect-ratio: 4 / 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #0f3460;
+            border-radius: 16px;
+            cursor: none; /* скрываем курсор для красоты, но на телефоне он и так не виден */
+            touch-action: none;
+        }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-top: 12px;
+            color: #e94560;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 0 8px;
+        }
+
+        #restartBtn {
+            background: #e94560;
+            border: none;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            padding: 8px 24px;
+            border-radius: 40px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #9c2b3f;
+            transition: 0.1s ease;
+            border: 1px solid #ff7b8f;
+            touch-action: manipulation;
+        }
+
+        #restartBtn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        #message {
+            color: #f5f5f5;
+            background: #0f3460cc;
+            padding: 6px 18px;
+            border-radius: 40px;
+            font-size: 1rem;
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="info-panel">
+        <span id="message">🔴 Игра</span>
+        <button id="restartBtn">🔄 Новая игра</button>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageEl = document.getElementById('message');
+
+        // --- Настройки игры ---
+        const COLS = 8;          // количество кирпичей по горизонтали
+        const ROWS = 5;           // количество кирпичей по вертикали
+        const BRICK_GAP = 6;      // промежуток между кирпичами
+        const BRICK_HEIGHT = 24;   // высота кирпича
+        const BRICK_WIDTH = (canvas.width - (COLS + 1) * BRICK_GAP) / COLS; // авто-расчет ширины под канвас
+
+        // Границы игрового поля (стены)
+        const WALL_LEFT = 0;
+        const WALL_RIGHT = canvas.width;
+        const WALL_TOP = 0;
+
+        // Платформа
+        const PADDLE_WIDTH = 120;
+        const PADDLE_HEIGHT = 16;
+        const PADDLE_Y = canvas.height - PADDLE_HEIGHT - 20; // чуть выше нижнего края
+
+        // Мяч
+        const BALL_RADIUS = 8;
+        const BALL_SPEED = 4.5;
+
+        // --- Переменные состояния ---
+        let bricks = [];
+        let paddleX = (canvas.width - PADDLE_WIDTH) / 2;
+        let ball = {
+            x: canvas.width / 2,
+            y: PADDLE_Y - BALL_RADIUS - 5,
+            dx: BALL_SPEED,
+            dy: -BALL_SPEED,
+            active: true      // true = мяч движется; false = прилип к платформе (не используется в этом варианте, но оставим на будущее)
+        };
+        let gameState = 'playing'; // 'playing', 'win', 'gameover'
+        let animationFrame = null;
+        let mouseX = 0; // для отслеживания мыши
+
+        // --- Создание кирпичей (с прочностью) ---
+        function createBricks() {
+            const bricksArray = [];
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    // прочность зависит от ряда: чем ниже, тем прочнее
+                    let hp;
+                    if (row === 0) hp = 1;          // красный (1 удар)
+                    else if (row === 1) hp = 1;      // тоже красный
+                    else if (row === 2) hp = 2;      // оранжевый (2 удара)
+                    else if (row === 3) hp = 2;      // оранжевый
+                    else hp = 3;                      // желтый (3 удара)
+
+                    bricksArray.push({
+                        x: col * (BRICK_WIDTH + BRICK_GAP) + BRICK_GAP,
+                        y: row * (BRICK_HEIGHT + BRICK_GAP) + BRICK_GAP + 40, // отступ сверху 40px
+                        width: BRICK_WIDTH,
+                        height: BRICK_HEIGHT,
+                        hp: hp,
+                        maxHp: hp
+                    });
+                }
+            }
+            return bricksArray;
+        }
+
+        // --- Сброс игры (начальное состояние) ---
+        function resetGame() {
+            bricks = createBricks();
+            paddleX = (canvas.width - PADDLE_WIDTH) / 2;
+            ball.x = canvas.width / 2;
+            ball.y = PADDLE_Y - BALL_RADIUS - 5;
+            ball.dx = BALL_SPEED;
+            ball.dy = -BALL_SPEED;
+            gameState = 'playing';
+            messageEl.innerText = '🔴 Игра';
+        }
+
+        // --- Проверка коллизии мяча с кирпичами ---
+        function handleBallBrickCollision() {
+            for (let i = bricks.length - 1; i >= 0; i--) {
+                const b = bricks[i];
+                // простейшее AABB-столкновение круга и прямоугольника
+                // найдём ближайшую точку прямоугольника к центру круга
+                const closestX = Math.max(b.x, Math.min(ball.x, b.x + b.width));
+                const closestY = Math.max(b.y, Math.min(ball.y, b.y + b.height));
+                const dx = ball.x - closestX;
+                const dy = ball.y - closestY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < BALL_RADIUS) { // есть контакт
+                    // уменьшаем прочность кирпича
+                    b.hp -= 1;
+                    if (b.hp <= 0) {
+                        bricks.splice(i, 1); // удаляем кирпич
+                    }
+
+                    // --- Определяем сторону столкновения для отскока ---
+                    // Смещаем мяч, чтобы не застрял
+                    if (distance > 0) {
+                        const overlap = BALL_RADIUS - distance;
+                        const nx = dx / distance;
+                        const ny = dy / distance;
+                        // отодвигаем мяч от точки контакта
+                        ball.x += nx * overlap;
+                        ball.y += ny * overlap;
+                    }
+
+                    // Грубо определяем, по какой оси было столкновение:
+                    // если |dx| > |dy|, то удар ближе к вертикальной грани (меняем dx)
+                    // иначе меняем dy.
+                    // Но используем также направление движения, чтобы избежать множественных изменений
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        ball.dx = -ball.dx;
+                    } else {
+                        ball.dy = -ball.dy;
+                    }
+
+                    // После отскока только один кирпич за кадр (чтобы мяч не убил несколько сразу)
+                    break;
+                }
+            }
+        }
+
+        // --- Проверка коллизии с платформой ---
+        function handlePaddleCollision() {
+            // Проверка, что мяч ниже платформы (по Y) – нужно для избежания ложных срабатываний
+            if (ball.y + BALL_RADIUS > PADDLE_Y &&
+                ball.x > paddleX &&
+                ball.x < paddleX + PADDLE_WIDTH &&
+                ball.dy > 0) { // движется вниз
+
+                // Отскок от платформы с изменением угла в зависимости от места удара
+                const hitPos = ball.x - paddleX; // позиция относительно левого края платформы (0..PADDLE_WIDTH)
+                const relativeHit = (hitPos / PADDLE_WIDTH) - 0.5; // от -0.5 до 0.5
+                const maxAngle = 2.0; // максимум изменения dx
+
+                // Новая скорость: сохраняем общую скорость, но меняем направление
+                const speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                let newDx = relativeHit * maxAngle * speed; // горизонтальная составляющая
+                // Ограничим, чтобы угол не стал слишком пологим
+                if (Math.abs(newDx) < 0.8) newDx = (newDx > 0 ? 0.8 : -0.8);
+                if (Math.abs(newDx) > speed * 0.9) newDx = (newDx > 0 ? speed * 0.9 : -speed * 0.9);
+
+                ball.dx = newDx;
+                ball.dy = -Math.sqrt(speed * speed - ball.dx * ball.dx); // сохраняем модуль скорости, но отрицательный Y
+
+                // Поднимаем мяч над платформой, чтобы избежать залипания
+                ball.y = PADDLE_Y - BALL_RADIUS - 1;
+            }
+        }
+
+        // --- Проверка столкновений со стенами ---
+        function handleWallCollision() {
+            // Левая и правая стена
+            if (ball.x - BALL_RADIUS < WALL_LEFT) {
+                ball.x = WALL_LEFT + BALL_RADIUS;
+                ball.dx = -ball.dx;
+            } else if (ball.x + BALL_RADIUS > WALL_RIGHT) {
+                ball.x = WALL_RIGHT - BALL_RADIUS;
+                ball.dx = -ball.dx;
+            }
+            // Верхняя стена
+            if (ball.y - BALL_RADIUS < WALL_TOP) {
+                ball.y = WALL_TOP + BALL_RADIUS;
+                ball.dy = -ball.dy;
+            }
+        }
+
+        // --- Обновление игры ---
+        function update() {
+            if (gameState !== 'playing') return;
+
+            // Двигаем мяч
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Проверяем проигрыш (мяч упал ниже платформы)
+            if (ball.y + BALL_RADIUS > canvas.height) {
+                gameState = 'gameover';
+                messageEl.innerText = '💔 Поражение';
+                return;
+            }
+
+            // Проверяем победу (нет кирпичей)
+            if (bricks.length === 0) {
+                gameState = 'win';
+                messageEl.innerText = '🎉 Победа!';
+                return;
+            }
+
+            // Обрабатываем столкновения в порядке: стены, кирпичи, платформа
+            handleWallCollision();
+            handleBallBrickCollision();
+            handlePaddleCollision();
+
+            // Небольшая дополнительная проверка, чтобы мяч не уходил за пределы по Y (на случай редких багов)
+            if (ball.y - BALL_RADIUS < WALL_TOP) {
+                ball.y = WALL_TOP + BALL_RADIUS;
+                ball.dy = -ball.dy;
+            }
+        }
+
+        // --- Отрисовка ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Рисуем кирпичи
+            bricks.forEach(brick => {
+                // Цвет в зависимости от прочности (maxHp)
+                if (brick.maxHp === 1) ctx.fillStyle = '#e63946'; // красный
+                else if (brick.maxHp === 2) ctx.fillStyle = '#f39c12'; // оранжевый
+                else ctx.fillStyle = '#f1c40f'; // желтый
+
+                ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+                // Рамка
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+
+                // Отображение оставшейся прочности (текст)
+                if (brick.hp > 1) {
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(brick.hp, brick.x + brick.width/2, brick.y + brick.height/2);
+                }
+            });
+
+            // Рисуем платформу
+            ctx.fillStyle = '#4cc9f0';
+            ctx.shadowColor = '#80d4ff';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(paddleX, PADDLE_Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = '#f8f9fa';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(paddleX, PADDLE_Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+            // Рисуем мяч
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = '#f8f9fa';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#f8f9fa';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#b0c4de';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // --- Цикл анимации ---
+        function gameLoop() {
+            update();
+            draw();
+            animationFrame = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Управление мышью ---
+        function handleMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;   // соотношение логических пикселей canvas и физических на экране
+            let mouseCanvasX = (e.clientX - rect.left) * scaleX;
+            // Ограничиваем положение платформы
+            mouseCanvasX = Math.max(0, Math.min(mouseCanvasX - PADDLE_WIDTH / 2, canvas.width - PADDLE_WIDTH));
+            paddleX = mouseCanvasX;
+        }
+
+        function handleMouseLeave() {
+            // Ничего не делаем, платформа остаётся на месте
+        }
+
+        // --- Управление касанием (для телефона) ---
+        function handleTouchMove(e) {
+            e.preventDefault(); // запрещаем прокрутку
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const scaleX = canvas.width / rect.width;
+            let touchCanvasX = (touch.clientX - rect.left) * scaleX;
+            touchCanvasX = Math.max(0, Math.min(touchCanvasX - PADDLE_WIDTH / 2, canvas.width - PADDLE_WIDTH));
+            paddleX = touchCanvasX;
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault(); // чтобы не было выделения или зума
+            // Можно также сразу переместить платформу под палец
+            handleTouchMove(e);
+        }
+
+        // --- Управление клавиатурой (стрелки) ---
+        const KEY_LEFT = 37;
+        const KEY_RIGHT = 39;
+        let leftPressed = false;
+        let rightPressed = false;
+
+        function handleKeyDown(e) {
+            if (e.keyCode === KEY_LEFT) {
+                leftPressed = true;
+                e.preventDefault();
+            } else if (e.keyCode === KEY_RIGHT) {
+                rightPressed = true;
+                e.preventDefault();
+            }
+        }
+
+        function handleKeyUp(e) {
+            if (e.keyCode === KEY_LEFT) {
+                leftPressed = false;
+                e.preventDefault();
+            } else if (e.keyCode === KEY_RIGHT) {
+                rightPressed = false;
+                e.preventDefault();
+            }
+        }
+
+        // Плавное движение с клавишами (будем обновлять в каждом кадре)
+        function updatePaddleFromKeys() {
+            if (!gameState) return;
+            const step = 8;
+            if (leftPressed) {
+                paddleX = Math.max(0, paddleX - step);
+            }
+            if (rightPressed) {
+                paddleX = Math.min(canvas.width - PADDLE_WIDTH, paddleX + step);
+            }
+        }
+
+        // Немного изменим gameLoop, чтобы добавить движение клавиш
+        const originalUpdate = update;
+        update = function() {
+            updatePaddleFromKeys();
+            originalUpdate();
+        };
+
+        // --- Инициализация событий ---
+        function initEvents() {
+            // Мышь
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseleave', handleMouseLeave);
+            // Касания
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', (e) => e.preventDefault());
+            canvas.addEventListener('touchcancel', (e) => e.preventDefault());
+
+            // Клавиши
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', handleKeyUp);
+
+            // Кнопка рестарта
+            document.getElementById('restartBtn').addEventListener('click', () => {
+                resetGame();
+            });
+            // Также на телефоне удобно тапнуть по canvas для перезапуска? Но оставим кнопку.
+        }
+
+        // --- Адаптация canvas под размеры на мобильных (сохраняем пропорции, но масштабируем координаты мыши) ---
+        // Важно! Координаты мыши/касаний мы уже масштабируем в обработчиках через rect и scaleX.
+        // Всё должно работать корректно.
+
+        // --- Запуск игры ---
+        resetGame();
+        initEvents();
+        gameLoop();
+
+        // Предотвращаем скролл страницы стрелками (чтобы не мешали игре)
+        window.addEventListener('keydown', (e) => {
+            if (e.keyCode === 37 || e.keyCode === 39 || e.keyCode === 32) {
+                e.preventDefault();
+            }
+        }, false);
+
+        // Дополнительно: остановка анимации при перезагрузке страницы не нужна
+        // Но при скрытии вкладки можно остановить, но не критично
+
+        // Убираем контекстное меню на canvas (правый клик)
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    })();
+</script>
+</body>
+</html>
+```
