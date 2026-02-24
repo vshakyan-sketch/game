@@ -176,7 +176,7 @@
             card.className = 'game-card';
 
             const img = document.createElement('img');
-            img.src = `images/game${i}.jpg`;
+            img.src = `game${i}.JPEG`;
             img.alt = `Игра ${i}`;
             img.onerror = function() {
                 this.onerror = null;
@@ -197,7 +197,7 @@
             title.textContent = `Игра ${i}: Название`;
 
             const link = document.createElement('a');
-            link.href = `games/game${i}.html`;
+            link.href = `game${i}.html`;
             link.className = 'btn';
             link.textContent = 'Подробнее';
 
